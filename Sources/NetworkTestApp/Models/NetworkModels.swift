@@ -136,29 +136,29 @@ struct MembershipPlan: Identifiable, Equatable, Sendable {
 
     static let pro = MembershipPlan(
         id: "pro-monthly",
-        name: "高级演示模式",
+        name: "Advanced demo mode",
         priceRMB: 18,
         monthlyCredits: 30,
         benefits: [
             MembershipBenefit(
                 id: "premium-global-nodes",
-                title: "解锁高级全球节点",
-                details: "从免费核心节点扩展到北美、欧洲、南美、南亚、东亚、中东和非洲等更多区域。"
+                title: "Unlock premium global nodes",
+                details: "Expand from core free regions to North America, Europe, South America, South Asia, East Asia, Middle East, and Africa."
             ),
             MembershipBenefit(
                 id: "monthly-credits",
-                title: "每月 30 点演示额度",
-                details: "可用于标准测速和极限测速，演示高流量测速的限额保护。"
+                title: "30 demo credits per month",
+                details: "Useful for standard and extreme speed tests while demonstrating quota protection for high-traffic scenarios."
             ),
             MembershipBenefit(
                 id: "extreme-speed-access",
-                title: "极限测速优先入口",
-                details: "保留极限测速入口和更高价值的诊断结果，后续可接入专属测速节点。"
+                title: "Extreme speed test entry",
+                details: "Keeps the extreme speed test entry and richer diagnostics, with room to plug in dedicated nodes later."
             ),
             MembershipBenefit(
                 id: "history-reports",
-                title: "历史报告与对比",
-                details: "后续保存每次诊断结果，用来对比 VPN 开关、不同网络和不同地区的变化。"
+                title: "History and comparison",
+                details: "Future support for saving each diagnosis run to compare VPN on/off, different networks, and regional changes."
             )
         ]
     )
@@ -246,7 +246,7 @@ struct CostProtectionPolicy: Equatable, Sendable {
         minimumGrossMarginRate: 0.8,
         defaultCreditPack: CreditPack(
             id: "starter-credits",
-            name: "安全额度包",
+            name: "Starter credit pack",
             priceRMB: 12,
             credits: 24,
             appleFeeRate: 0.15
@@ -254,33 +254,33 @@ struct CostProtectionPolicy: Equatable, Sendable {
         profiles: [
             MeteredTestProfile(
                 id: "latency-map",
-                name: "全球延迟地图",
+                name: "Global latency map",
                 category: .free,
                 downloadMegabytes: 1,
                 uploadIngressMegabytes: 0,
                 creditsRequired: 0,
                 dailyHardLimit: nil,
-                description: "只做 ping/HTTP 轻探测，适合默认开放。"
+                description: "Light ping/HTTP probes only. Safe to keep open by default."
             ),
             MeteredTestProfile(
                 id: "standard-speed",
-                name: "标准测速",
+                name: "Standard speed test",
                 category: .standard,
                 downloadMegabytes: 100,
                 uploadIngressMegabytes: 30,
                 creditsRequired: 1,
                 dailyHardLimit: 20,
-                description: "用于日常下载、上传、延迟、抖动结果展示。"
+                description: "Everyday download, upload, latency, and jitter results."
             ),
             MeteredTestProfile(
                 id: "extreme-speed",
-                name: "极限测速",
+                name: "Extreme speed test",
                 category: .extreme,
                 downloadMegabytes: 250,
                 uploadIngressMegabytes: 50,
                 creditsRequired: 3,
                 dailyHardLimit: 5,
-                description: "高带宽场景使用更高额度并限制每日次数，避免滥用公共或自建节点。"
+                description: "Higher-traffic profile with stricter daily limits to protect public or self-hosted nodes."
             )
         ]
     )

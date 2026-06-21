@@ -7,14 +7,14 @@ final class DiagnosticsViewModel: ObservableObject {
     @Published var speedResult: SpeedTestResult?
     @Published var regionResults: [RegionProbeResult] = []
     @Published var diagnosis = DiagnosisSummary(
-        title: "尚未开始诊断",
-        details: "点击开始诊断后，会同时查询公网 IP、网络路径、基础测速和全球区域节点。",
+        title: "Diagnostics not started",
+        details: "Run diagnostics to query public IP, network path, baseline speed, and global regional nodes.",
         severity: .unknown
     )
     @Published var isRunning = false
     @Published var statusMessage = "Ready"
     @Published var progressSteps: [DiagnosticProgressStep] = []
-    @Published var lastSpeedProfileName = "基础测速"
+    @Published var lastSpeedProfileName = "Baseline speed test"
 
     private let ipLookupService: IPLookupServicing
     private let pathService: NetworkPathServicing
@@ -41,41 +41,41 @@ final class DiagnosticsViewModel: ObservableObject {
         guard isRunning == false else { return }
 
         isRunning = true
-        statusMessage = "正在准备诊断..."
+        statusMessage = "Preparing diagnostics..."
         progressSteps = Self.initialProgressSteps()
 
         Task {
-            updateProgressStep("path", status: .running, details: "正在读取系统网络路径、接口类型和 VPN 线索。")
+            updateProgressStep("path", status: .running, details: "Reading system network path, interface types, and VPN clues.")
             let path = await pathService.currentSnapshot()
             pathSnapshot = path
-            updateProgressStep("path", status: .completed, details: "已获取网络状态、接口、DNS、IPv4/IPv6 和 VPN 线索。")
+            updateProgressStep("path", status: .completed, details: "Collected network status, interfaces, DNS, IPv4/IPv6, and VPN clues.")
 
-            updateProgressStep("ip", status: .running, details: "正在查询公网 IP、地理位置和运营商。")
+            updateProgressStep("ip", status: .running, details: "Looking up public IP, location, and ISP.")
             let ip = await ipLookupService.lookup()
             ipInfo = ip
             let ipLookupFailed = ip.ipAddress == "Unavailable"
-            updateProgressStep("ip", status: ipLookupFailed ? .failed : .completed, details: ipLookupFailed ? "公网 IP 查询失败，后续诊断会继续进行。" : "已获取公网 IP、位置和运营商信息。")
+            updateProgressStep("ip", status: ipLookupFailed ? .failed : .completed, details: ipLookupFailed ? "Public IP lookup failed. Remaining checks will continue." : "Collected public IP, location, and ISP details.")
 
-            updateProgressStep("speed", status: .running, details: "正在测试下载、上传、延迟和抖动。")
-            lastSpeedProfileName = "基础测速"
+            updateProgressStep("speed", status: .running, details: "Testing download, upload, latency, and jitter.")
+            lastSpeedProfileName = "Baseline speed test"
             let speed = await speedTestService.runSpeedTest()
             speedResult = speed
-            updateProgressStep("speed", status: speed.errorMessage == nil ? .completed : .failed, details: speed.errorMessage ?? "基础测速已完成。")
+            updateProgressStep("speed", status: speed.errorMessage == nil ? .completed : .failed, details: speed.errorMessage ?? "Baseline speed test completed.")
 
-            updateProgressStep("regions", status: .running, details: includePremiumRegions ? "正在探测全部全球节点的可达性和延迟。" : "正在探测默认全球节点的可达性和延迟。")
+            updateProgressStep("regions", status: .running, details: includePremiumRegions ? "Probing all global nodes for reachability and latency." : "Probing default global nodes for reachability and latency.")
             let regions = await regionalProbeService.probeRegions(includePremium: includePremiumRegions)
             regionResults = regions
-            updateProgressStep("regions", status: .completed, details: "已完成 \(regions.count) 个全球节点探测。")
+            updateProgressStep("regions", status: .completed, details: "Completed probing \(regions.count) global nodes.")
 
-            updateProgressStep("summary", status: .running, details: "正在综合 IP、测速、路径和区域结果生成结论。")
+            updateProgressStep("summary", status: .running, details: "Combining IP, speed, path, and regional results into a summary.")
             diagnosis = diagnosisEngine.summarize(
                 ipInfo: ip,
                 path: path,
                 speed: speed,
                 regions: regions
             )
-            updateProgressStep("summary", status: .completed, details: "诊断结论和处理建议已生成。")
-            statusMessage = "诊断完成"
+            updateProgressStep("summary", status: .completed, details: "Diagnosis summary and recommendations are ready.")
+            statusMessage = "Diagnostics complete"
             isRunning = false
         }
     }
@@ -88,15 +88,26 @@ final class DiagnosticsViewModel: ObservableObject {
 
         isRunning = true
         lastSpeedProfileName = profile.name
-        statusMessage = "正在运行 \(profile.name)..."
+        statusMessage = "Running \(profile.name)..."
 
         Task {
             let speed = await speedTestService.runSpeedTest(profile: profile)
             speedResult = speed
-            statusMessage = speed.errorMessage == nil ? "\(profile.name) 完成" : "\(profile.name) 失败"
+            statusMessage = speed.errorMessage == nil ? "\(profile.name) complete" : "\(profile.name) failed"
             isRunning = false
             completion(speed)
         }
+    }
+
+    func loadScreenshotPreview(scenario: ScreenshotScenario) {
+        ipInfo = scenario.ipInfo
+        pathSnapshot = scenario.pathSnapshot
+        speedResult = scenario.speedResult
+        regionResults = scenario.regionResults
+        diagnosis = scenario.diagnosis
+        lastSpeedProfileName = scenario.speedProfileName
+        statusMessage = "Diagnostics complete"
+        progressSteps = scenario.progressSteps
     }
 
     private func updateProgressStep(_ id: String, status: DiagnosticStepStatus, details: String) {
@@ -108,11 +119,212 @@ final class DiagnosticsViewModel: ObservableObject {
 
     private static func initialProgressSteps() -> [DiagnosticProgressStep] {
         [
-            DiagnosticProgressStep(id: "path", title: "检查本机网络路径", details: "等待开始", status: .pending),
-            DiagnosticProgressStep(id: "ip", title: "查询公网 IP", details: "等待开始", status: .pending),
-            DiagnosticProgressStep(id: "speed", title: "执行基础测速", details: "等待开始", status: .pending),
-            DiagnosticProgressStep(id: "regions", title: "探测全球节点", details: "等待开始", status: .pending),
-            DiagnosticProgressStep(id: "summary", title: "生成诊断结论", details: "等待开始", status: .pending)
+            DiagnosticProgressStep(id: "path", title: "Check local network path", details: "Waiting to start", status: .pending),
+            DiagnosticProgressStep(id: "ip", title: "Look up public IP", details: "Waiting to start", status: .pending),
+            DiagnosticProgressStep(id: "speed", title: "Run baseline speed test", details: "Waiting to start", status: .pending),
+            DiagnosticProgressStep(id: "regions", title: "Probe global nodes", details: "Waiting to start", status: .pending),
+            DiagnosticProgressStep(id: "summary", title: "Generate diagnosis summary", details: "Waiting to start", status: .pending)
         ]
+    }
+}
+
+enum ScreenshotScenario {
+    case overviewVPN
+    case overviewLocalIssue
+    case speedTest
+    case globalNodes
+
+    var ipInfo: IPInfo {
+        switch self {
+        case .overviewVPN:
+            IPInfo(
+                ipAddress: "74.211.106.65",
+                city: "Los Angeles",
+                region: "California",
+                country: "United States",
+                isp: "IT7 Networks Inc",
+                organization: nil,
+                timezone: "America/Los_Angeles",
+                source: "ipapi.co"
+            )
+        case .overviewLocalIssue:
+            IPInfo(
+                ipAddress: "222.241.249.160",
+                city: "Changsha",
+                region: "Hunan",
+                country: "China",
+                isp: "Chinanet",
+                organization: nil,
+                timezone: "Asia/Shanghai",
+                source: "ipapi.co"
+            )
+        default:
+            IPInfo(
+                ipAddress: "203.0.113.42",
+                city: "Singapore",
+                region: nil,
+                country: "Singapore",
+                isp: "Example Fiber",
+                organization: nil,
+                timezone: "Asia/Singapore",
+                source: "ipapi.co"
+            )
+        }
+    }
+
+    var pathSnapshot: NetworkPathSnapshot {
+        switch self {
+        case .overviewVPN:
+            NetworkPathSnapshot(
+                status: "Online",
+                interfaces: ["Wi-Fi", "Other"],
+                isExpensive: false,
+                isConstrained: false,
+                supportsIPv4: true,
+                supportsIPv6: false,
+                supportsDNS: true,
+                likelyUsesVPN: true
+            )
+        case .overviewLocalIssue:
+            NetworkPathSnapshot(
+                status: "Online",
+                interfaces: ["Wi-Fi"],
+                isExpensive: false,
+                isConstrained: false,
+                supportsIPv4: true,
+                supportsIPv6: false,
+                supportsDNS: true,
+                likelyUsesVPN: true
+            )
+        default:
+            NetworkPathSnapshot(
+                status: "Online",
+                interfaces: ["Wi-Fi"],
+                isExpensive: false,
+                isConstrained: false,
+                supportsIPv4: true,
+                supportsIPv6: true,
+                supportsDNS: true,
+                likelyUsesVPN: false
+            )
+        }
+    }
+
+    var speedResult: SpeedTestResult {
+        switch self {
+        case .overviewVPN, .speedTest:
+            SpeedTestResult(
+                downloadMbps: 30.2,
+                uploadMbps: 0.9,
+                latencyMilliseconds: 364,
+                jitterMilliseconds: 201,
+                samples: [30.2],
+                endpointName: "Cloudflare 25 MB",
+                completedAt: .now,
+                errorMessage: nil
+            )
+        case .overviewLocalIssue:
+            SpeedTestResult(
+                downloadMbps: 3.1,
+                uploadMbps: 0.1,
+                latencyMilliseconds: 453,
+                jitterMilliseconds: 335,
+                samples: [3.1],
+                endpointName: "Cloudflare 25 MB",
+                completedAt: .now,
+                errorMessage: nil
+            )
+        case .globalNodes:
+            SpeedTestResult(
+                downloadMbps: 286.4,
+                uploadMbps: 42.8,
+                latencyMilliseconds: 19,
+                jitterMilliseconds: 4,
+                samples: [286.4],
+                endpointName: "Standard speed test / Cloudflare",
+                completedAt: .now,
+                errorMessage: nil
+            )
+        }
+    }
+
+    var regionResults: [RegionProbeResult] {
+        switch self {
+        case .globalNodes:
+            [
+                RegionProbeResult(regionCode: "AU", displayName: "Australia", endpointHost: "dynamodb.ap-southeast-2.amazonaws.com", latencyMilliseconds: 681, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "JP", displayName: "Japan", endpointHost: "www.google.co.jp", latencyMilliseconds: 396, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "SG", displayName: "Singapore", endpointHost: "www.google.com.sg", latencyMilliseconds: 369, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "US-W", displayName: "US West", endpointHost: "dynamodb.us-west-1.amazonaws.com", latencyMilliseconds: nil, downloadMbps: nil, isReachable: false, errorMessage: "Failed"),
+                RegionProbeResult(regionCode: "EU", displayName: "Europe", endpointHost: "dynamodb.eu-west-1.amazonaws.com", latencyMilliseconds: 1824, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "CN", displayName: "Mainland China", endpointHost: "www.baidu.com", latencyMilliseconds: 3797, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "US-E", displayName: "US East", endpointHost: "dynamodb.us-east-1.amazonaws.com", latencyMilliseconds: 2132, downloadMbps: nil, isReachable: true, errorMessage: nil)
+            ]
+        case .overviewVPN:
+            [
+                RegionProbeResult(regionCode: "US-W", displayName: "US West", endpointHost: "dynamodb.us-west-1.amazonaws.com", latencyMilliseconds: 943, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "US-E", displayName: "US East", endpointHost: "dynamodb.us-east-1.amazonaws.com", latencyMilliseconds: 937, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "EU", displayName: "Europe", endpointHost: "dynamodb.eu-west-1.amazonaws.com", latencyMilliseconds: 1201, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "JP", displayName: "Japan", endpointHost: "www.google.co.jp", latencyMilliseconds: 1073, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "SG", displayName: "Singapore", endpointHost: "www.google.com.sg", latencyMilliseconds: 1295, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "AU", displayName: "Australia", endpointHost: "dynamodb.ap-southeast-2.amazonaws.com", latencyMilliseconds: 1213, downloadMbps: nil, isReachable: true, errorMessage: nil),
+                RegionProbeResult(regionCode: "CN", displayName: "Mainland China", endpointHost: "www.baidu.com", latencyMilliseconds: 1371, downloadMbps: nil, isReachable: true, errorMessage: nil)
+            ]
+        default:
+            []
+        }
+    }
+
+    var diagnosis: DiagnosisSummary {
+        DiagnosisEngine().summarize(
+            ipInfo: ipInfo,
+            path: pathSnapshot,
+            speed: speedResult,
+            regions: regionResults
+        )
+    }
+
+    var speedProfileName: String {
+        switch self {
+        case .speedTest:
+            "Standard speed test"
+        case .globalNodes:
+            "Standard speed test"
+        default:
+            "Baseline speed test"
+        }
+    }
+
+    var progressSteps: [DiagnosticProgressStep] {
+        [
+            DiagnosticProgressStep(id: "path", title: "Check local network path", details: "Collected network status, interfaces, DNS, IPv4/IPv6, and VPN clues.", status: .completed),
+            DiagnosticProgressStep(id: "ip", title: "Look up public IP", details: "Collected public IP, location, and ISP details.", status: .completed),
+            DiagnosticProgressStep(id: "speed", title: "Run baseline speed test", details: "Baseline speed test completed.", status: .completed),
+            DiagnosticProgressStep(id: "regions", title: "Probe global nodes", details: "Completed probing global nodes.", status: .completed),
+            DiagnosticProgressStep(id: "summary", title: "Generate diagnosis summary", details: "Diagnosis summary and recommendations are ready.", status: .completed)
+        ]
+    }
+}
+
+enum AppPreviewData {
+    static var isScreenshotMode: Bool {
+        ProcessInfo.processInfo.environment["SCREENSHOT_MODE"] == "1"
+    }
+
+    static var screenshotScenario: ScreenshotScenario {
+        switch ProcessInfo.processInfo.environment["SCREENSHOT_SCENARIO"] {
+        case "local-issue":
+            .overviewLocalIssue
+        case "speed-test":
+            .speedTest
+        case "global-nodes":
+            .globalNodes
+        default:
+            .overviewVPN
+        }
+    }
+
+    static var screenshotTab: Int {
+        Int(ProcessInfo.processInfo.environment["SCREENSHOT_TAB"] ?? "0") ?? 0
     }
 }

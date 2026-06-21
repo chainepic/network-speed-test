@@ -16,7 +16,7 @@ final class MembershipStore: ObservableObject {
         let timestamp = userDefaults.double(forKey: expiresAtKey)
         let storedExpiresAt = timestamp > 0 ? Date(timeIntervalSince1970: timestamp) : nil
         self.expiresAt = storedExpiresAt
-        self.message = storedExpiresAt.map { "高级模式有效期至 \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "当前为默认模式"
+        self.message = storedExpiresAt.map { "Advanced mode active until \($0.formatted(date: .abbreviated, time: .omitted))" } ?? "Default mode"
     }
 
     var isPro: Bool {
@@ -25,8 +25,8 @@ final class MembershipStore: ObservableObject {
     }
 
     var statusText: String {
-        guard isPro, let expiresAt else { return "默认模式" }
-        return "\(plan.name) · 有效期至 \(expiresAt.formatted(date: .abbreviated, time: .omitted))"
+        guard isPro, let expiresAt else { return "Default mode" }
+        return "\(plan.name) · active until \(expiresAt.formatted(date: .abbreviated, time: .omitted))"
     }
 
     var unlockedNodeCount: Int {
@@ -43,7 +43,7 @@ final class MembershipStore: ObservableObject {
         let newExpiry = Calendar.current.date(byAdding: .day, value: days, to: baseDate) ?? .now.addingTimeInterval(Double(days) * 86_400)
         expiresAt = newExpiry
         userDefaults.set(newExpiry.timeIntervalSince1970, forKey: expiresAtKey)
-        message = "已启用 \(plan.name)，高级全球节点已开启"
+        message = "Enabled \(plan.name). Premium global nodes are now unlocked."
         return true
     }
 }

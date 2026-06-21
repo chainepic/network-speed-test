@@ -104,11 +104,11 @@ struct SpeedTestService: SpeedTestServicing {
     private func endpointDescription(download: String?, upload: String?) -> String {
         switch (download, upload) {
         case let (download?, upload?):
-            "下载：\(download) / 上传：\(upload)"
+            "Download: \(download) / Upload: \(upload)"
         case let (download?, nil):
-            "下载：\(download) / 上传：失败"
+            "Download: \(download) / Upload: failed"
         case let (nil, upload?):
-            "下载：失败 / 上传：\(upload)"
+            "Download: failed / Upload: \(upload)"
         case (nil, nil):
             "No endpoint"
         }

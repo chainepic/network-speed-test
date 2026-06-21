@@ -20,18 +20,18 @@ final class CreditLedgerStore: ObservableObject {
                     id: UUID(),
                     kind: .purchase,
                     profileID: nil,
-                    title: "体验额度",
+                    title: "Starter credits",
                     creditsDelta: seedCredits,
                     createdAt: .now,
-                    note: "本地开源演示预置，用来体验标准/极限测速额度流程。"
+                    note: "Seeded locally for the open-source demo quota flow."
                 )
             ]
-            self.message = "已发放 \(seedCredits) 点体验额度"
+            self.message = "Granted \(seedCredits) starter credits"
             persist()
         } else {
             self.balance = userDefaults.integer(forKey: balanceKey)
             self.transactions = Self.decodeTransactions(from: userDefaults.data(forKey: transactionsKey))
-            self.message = "额度账本已加载"
+            self.message = "Credit ledger loaded"
         }
     }
 
@@ -59,11 +59,11 @@ final class CreditLedgerStore: ObservableObject {
     @discardableResult
     func consumeCredits(for profile: MeteredTestProfile) -> Bool {
         guard hasDailyQuota(for: profile) else {
-            message = "\(profile.name) 今日次数已用完"
+            message = "Daily limit reached for \(profile.name)"
             return false
         }
         guard hasEnoughCredits(for: profile) else {
-            message = "额度不足，无法运行 \(profile.name)"
+            message = "Not enough credits to run \(profile.name)"
             return false
         }
 
@@ -73,9 +73,9 @@ final class CreditLedgerStore: ObservableObject {
             profile: profile,
             title: profile.name,
             creditsDelta: -profile.creditsRequired,
-            note: "测速开始前预扣额度。"
+            note: "Credits reserved before the speed test starts."
         )
-        message = "已预扣 \(profile.creditsRequired) 点额度，开始 \(profile.name)"
+        message = "Reserved \(profile.creditsRequired) credits. Starting \(profile.name)."
         return true
     }
 
@@ -86,11 +86,11 @@ final class CreditLedgerStore: ObservableObject {
         appendTransaction(
             kind: .speedTestRefund,
             profile: profile,
-            title: "\(profile.name) 退回额度",
+            title: "\(profile.name) refund",
             creditsDelta: profile.creditsRequired,
             note: reason
         )
-        message = "\(profile.name) 失败，已退回 \(profile.creditsRequired) 点额度"
+        message = "\(profile.name) failed. Returned \(profile.creditsRequired) credits."
     }
 
     func addCredits(from pack: CreditPack) {
@@ -100,9 +100,9 @@ final class CreditLedgerStore: ObservableObject {
             profile: nil,
             title: pack.name,
             creditsDelta: pack.credits,
-            note: "本地模拟补充。接入账号系统后应由服务端账本入账。"
+            note: "Local demo top-up. A real deployment should write this through a server ledger."
         )
-        message = "已补充 \(pack.credits) 点演示额度"
+        message = "Added \(pack.credits) demo credits"
     }
 
     func addMembershipCredits(_ credits: Int, planName: String) {
@@ -110,11 +110,45 @@ final class CreditLedgerStore: ObservableObject {
         appendTransaction(
             kind: .membershipGrant,
             profile: nil,
-            title: "\(planName) 额度",
+            title: "\(planName) credits",
             creditsDelta: credits,
-            note: "本地模拟高级模式额度发放。接入账号系统后应由服务端控制。"
+            note: "Local demo grant for advanced mode. A real deployment should enforce this on the server."
         )
-        message = "\(planName) 已发放 \(credits) 点额度"
+        message = "\(planName) granted \(credits) credits"
+    }
+
+    func loadScreenshotPreview() {
+        balance = 5
+        transactions = [
+            CreditTransaction(
+                id: UUID(),
+                kind: .speedTestRefund,
+                profileID: "standard-speed",
+                title: "Standard speed test refund",
+                creditsDelta: 1,
+                createdAt: .now,
+                note: "Speed test request failed. Reserved credits were returned automatically."
+            ),
+            CreditTransaction(
+                id: UUID(),
+                kind: .speedTestDebit,
+                profileID: "standard-speed",
+                title: "Standard speed test",
+                creditsDelta: -1,
+                createdAt: .now.addingTimeInterval(-120),
+                note: "Credits reserved before the speed test starts."
+            ),
+            CreditTransaction(
+                id: UUID(),
+                kind: .purchase,
+                profileID: nil,
+                title: "Starter credits",
+                creditsDelta: 6,
+                createdAt: .now.addingTimeInterval(-3600),
+                note: "Seeded locally for the open-source demo quota flow."
+            )
+        ]
+        message = "Standard speed test failed. Returned 1 credit."
     }
 
     private func appendTransaction(

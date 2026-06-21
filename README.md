@@ -66,6 +66,13 @@ swift run NetworkTestApp
 
 The raw executable is useful for quick iteration, but it is not a full `.app` bundle and may not show the Finder/Dock icon. Use `scripts/run-mac.sh` for local app-style testing.
 
+To regenerate README screenshots with the built-in English preview data:
+
+```sh
+chmod +x scripts/capture-screenshots.sh
+./scripts/capture-screenshots.sh
+```
+
 ## Project Structure
 
 ```text

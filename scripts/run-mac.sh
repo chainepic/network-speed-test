@@ -93,4 +93,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 
 pkill -x NetworkTestApp 2>/dev/null || true
+if [[ "${1:-}" == "--build-only" ]]; then
+  exit 0
+fi
 open "$APP"

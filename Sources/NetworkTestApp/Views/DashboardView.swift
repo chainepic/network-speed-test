@@ -5,31 +5,134 @@ struct DashboardView: View {
     @StateObject private var viewModel = DiagnosticsViewModel()
     @StateObject private var creditStore = CreditLedgerStore()
     @StateObject private var membershipStore = MembershipStore()
+    @State private var selectedTab: Int
+    private let previewScenario: ScreenshotScenario?
     private let costPolicy = CostProtectionPolicy.productionSafe
 
+    init(previewScenario: ScreenshotScenario? = nil, previewTab: Int = 0) {
+        self.previewScenario = previewScenario
+        _selectedTab = State(initialValue: previewTab)
+
+        let previewDefaults = UserDefaults(suiteName: "network-speed-test-screenshot")!
+        previewDefaults.removePersistentDomain(forName: "network-speed-test-screenshot")
+
+        let viewModel = DiagnosticsViewModel()
+        let creditStore = CreditLedgerStore(userDefaults: previewScenario == nil ? .standard : previewDefaults)
+        let membershipStore = MembershipStore(userDefaults: previewScenario == nil ? .standard : previewDefaults)
+
+        if let previewScenario {
+            viewModel.loadScreenshotPreview(scenario: previewScenario)
+            if previewScenario == .speedTest {
+                creditStore.loadScreenshotPreview()
+            }
+        }
+
+        _viewModel = StateObject(wrappedValue: viewModel)
+        _creditStore = StateObject(wrappedValue: creditStore)
+        _membershipStore = StateObject(wrappedValue: membershipStore)
+    }
+
     var body: some View {
-        TabView {
-            DiagnosisOverviewTab(viewModel: viewModel, membershipStore: membershipStore)
-                .tabItem {
-                    Label("总览", systemImage: "gauge.with.dots.needle.bottom.50percent")
+        Group {
+            if previewScenario != nil {
+                VStack(spacing: 0) {
+                    ScreenshotTabBar(selectedTab: selectedTab)
+                    selectedTabContent
                 }
-
-            SpeedDiagnosticsTab(viewModel: viewModel, creditStore: creditStore, policy: costPolicy)
-                .tabItem {
-                    Label("测速", systemImage: "speedometer")
+            } else {
+                TabView(selection: $selectedTab) {
+                    tabContent
                 }
-
-            RegionResultsTab(results: viewModel.regionResults, membershipStore: membershipStore, creditStore: creditStore)
-                .tabItem {
-                    Label("全球节点", systemImage: "map")
-                }
-
-            CostProtectionTab(policy: costPolicy, membershipStore: membershipStore, creditStore: creditStore)
-                .tabItem {
-                    Label("开源实验", systemImage: "shippingbox")
-                }
+            }
         }
         .frame(minWidth: 920, minHeight: 600)
+        .onAppear {
+            if let previewScenario {
+                applyScreenshotPreview(scenario: previewScenario)
+                return
+            }
+
+            guard AppPreviewData.isScreenshotMode else { return }
+            applyScreenshotPreview(scenario: AppPreviewData.screenshotScenario)
+            selectedTab = AppPreviewData.screenshotTab
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        DiagnosisOverviewTab(viewModel: viewModel, membershipStore: membershipStore)
+            .tabItem {
+                Label("Overview", systemImage: "gauge.with.dots.needle.bottom.50percent")
+            }
+            .tag(0)
+
+        SpeedDiagnosticsTab(viewModel: viewModel, creditStore: creditStore, policy: costPolicy)
+            .tabItem {
+                Label("Speed Test", systemImage: "speedometer")
+            }
+            .tag(1)
+
+        RegionResultsTab(results: viewModel.regionResults, membershipStore: membershipStore, creditStore: creditStore)
+            .tabItem {
+                Label("Global Nodes", systemImage: "map")
+            }
+            .tag(2)
+
+        CostProtectionTab(policy: costPolicy, membershipStore: membershipStore, creditStore: creditStore)
+            .tabItem {
+                Label("Open Source Lab", systemImage: "shippingbox")
+            }
+            .tag(3)
+    }
+
+    @ViewBuilder
+    private var selectedTabContent: some View {
+        switch selectedTab {
+        case 1:
+            SpeedDiagnosticsTab(viewModel: viewModel, creditStore: creditStore, policy: costPolicy)
+        case 2:
+            RegionResultsTab(results: viewModel.regionResults, membershipStore: membershipStore, creditStore: creditStore)
+        case 3:
+            CostProtectionTab(policy: costPolicy, membershipStore: membershipStore, creditStore: creditStore)
+        default:
+            DiagnosisOverviewTab(viewModel: viewModel, membershipStore: membershipStore)
+        }
+    }
+
+    private func applyScreenshotPreview(scenario: ScreenshotScenario) {
+        viewModel.loadScreenshotPreview(scenario: scenario)
+        if scenario == .speedTest {
+            creditStore.loadScreenshotPreview()
+        }
+    }
+}
+
+private struct ScreenshotTabBar: View {
+    var selectedTab: Int
+
+    private let tabs = [
+        ("Overview", "gauge.with.dots.needle.bottom.50percent"),
+        ("Speed Test", "speedometer"),
+        ("Global Nodes", "map"),
+        ("Open Source Lab", "shippingbox")
+    ]
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ForEach(Array(tabs.enumerated()), id: \.offset) { index, tab in
+                Label(tab.0, systemImage: tab.1)
+                    .font(.subheadline.weight(selectedTab == index ? .semibold : .regular))
+                    .foregroundStyle(selectedTab == index ? .primary : .secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(selectedTab == index ? Color.secondary.opacity(0.16) : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 }
 
@@ -48,7 +151,7 @@ private struct DiagnosisOverviewTab: View {
                         Button {
                             viewModel.runFullDiagnosis(includePremiumRegions: membershipStore.isPro)
                         } label: {
-                            Label(viewModel.isRunning ? "诊断中..." : "开始网络诊断", systemImage: "network")
+                            Label(viewModel.isRunning ? "Running..." : "Start network diagnostics", systemImage: "network")
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.borderedProminent)
@@ -60,7 +163,7 @@ private struct DiagnosisOverviewTab: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
 
-                        Text(membershipStore.isPro ? "本次会探测全部 \(EndpointCatalog.regional.count) 个全球节点" : "默认探测 \(EndpointCatalog.freeRegional.count) 个核心节点")
+                        Text(membershipStore.isPro ? "This run will probe all \(EndpointCatalog.regional.count) global nodes" : "Default run probes \(EndpointCatalog.freeRegional.count) core nodes")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -117,13 +220,13 @@ private struct SpeedDiagnosticsTab: View {
 
                 SpeedEndpointInfoCard()
 
-                CardView(title: "开源演示说明") {
-                    Text("当前仓库是本地优先的开源示例：额度和流水保存在本机，用来演示高流量测速的成本保护思路。接入自建节点时，额度校验、退款、每日上限和测速 URL 签发应由服务端执行。")
+                CardView(title: "Open-source demo notes") {
+                    Text("This repo is a local-first open-source demo. Credits and history stay on-device to illustrate cost protection for high-traffic speed tests. When you connect self-hosted nodes, quota checks, refunds, daily limits, and signed test URLs should run on the server.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    InfoRow(label: "预扣额度", value: "点击测速前先扣额度，失败后自动退回。")
-                    InfoRow(label: "短期 URL", value: "接入服务端时建议签发一次性测速 URL。")
-                    InfoRow(label: "防刷限额", value: "现在已有本地每日次数检查，生产需要账号/设备/IP 多维限流。")
+                    InfoRow(label: "Reserve credits", value: "Credits are reserved before a test starts and refunded automatically on failure.")
+                    InfoRow(label: "Short-lived URL", value: "Use one-time signed speed test URLs when a server is involved.")
+                    InfoRow(label: "Abuse limits", value: "Local daily limits exist now; production should add account/device/IP throttling.")
                 }
             }
             .padding(16)
@@ -136,7 +239,7 @@ private struct SpeedDiagnosticsTab: View {
 
         viewModel.runMeteredSpeedTest(profile: profile) { result in
             if result.errorMessage != nil {
-                creditStore.refundCredits(for: profile, reason: "测速请求失败，自动退回预扣额度。")
+                creditStore.refundCredits(for: profile, reason: "Speed test request failed. Reserved credits were returned automatically.")
             }
         }
     }
@@ -144,14 +247,14 @@ private struct SpeedDiagnosticsTab: View {
 
 private struct SpeedEndpointInfoCard: View {
     var body: some View {
-        CardView(title: "当前测速节点说明") {
-            Text("标准/极限测速目前都使用第三方公共测速端点，不是我们自建机房。下载和上传优先走 Cloudflare Speed Test 的全球边缘节点，实际落到哪个城市由 Cloudflare Anycast 和你的网络路由决定。")
+        CardView(title: "Current speed test endpoints") {
+            Text("Standard and extreme speed tests currently use third-party public endpoints rather than self-hosted infrastructure. Download and upload prefer Cloudflare Speed Test edge nodes; the actual city depends on Anycast routing and your network path.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            InfoRow(label: "下载", value: "speed.cloudflare.com/__down，按测速档位生成 100 MB 或 250 MB 下载")
-            InfoRow(label: "上传", value: "speed.cloudflare.com/__up，按测速档位上传 30 MB 或 50 MB")
-            InfoRow(label: "fallback", value: "上传失败时保留 httpbin.org/post 作为备用公共端点")
-            InfoRow(label: "全球节点", value: "全球节点页探测的是区域端点：Google/Baidu + AWS DynamoDB 各区域入口")
+            InfoRow(label: "Download", value: "speed.cloudflare.com/__down with 100 MB or 250 MB payloads by profile")
+            InfoRow(label: "Upload", value: "speed.cloudflare.com/__up with 30 MB or 50 MB payloads by profile")
+            InfoRow(label: "Fallback", value: "httpbin.org/post remains as a public upload fallback when Cloudflare upload fails.")
+            InfoRow(label: "Global nodes", value: "The global nodes tab probes regional endpoints from Google/Baidu and AWS DynamoDB.")
         }
     }
 }
@@ -161,14 +264,14 @@ private struct CreditWalletCard: View {
     var pack: CreditPack
 
     var body: some View {
-        CardView(title: "测试额度") {
-            InfoRow(label: "当前余额", value: "\(creditStore.balance) 点额度")
-            InfoRow(label: "演示补充包", value: "\(pack.priceRMB.formattedRMB) / \(pack.credits) 点额度")
+        CardView(title: "Test credits") {
+            InfoRow(label: "Balance", value: "\(creditStore.balance) credits")
+            InfoRow(label: "Demo top-up", value: "\(pack.priceRMB.formattedRMB) / \(pack.credits) credits")
 
             Button {
                 creditStore.addCredits(from: pack)
             } label: {
-                Label("补充演示额度", systemImage: "plus.circle.fill")
+                Label("Add demo credits", systemImage: "plus.circle.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
@@ -194,20 +297,20 @@ private struct MeteredSpeedActionCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            InfoRow(label: "消耗", value: "\(profile.creditsRequired) 点额度/次")
-            InfoRow(label: "流量", value: "\(profile.downloadMegabytes.formattedNoDecimal) MB 下载 + \(profile.uploadIngressMegabytes.formattedNoDecimal) MB 上传")
+            InfoRow(label: "Cost", value: "\(profile.creditsRequired) credits/run")
+            InfoRow(label: "Traffic", value: "\(profile.downloadMegabytes.formattedNoDecimal) MB down + \(profile.uploadIngressMegabytes.formattedNoDecimal) MB up")
             if let dailyHardLimit = profile.dailyHardLimit {
-                InfoRow(label: "今日次数", value: "\(creditStore.usedToday(for: profile)) / \(dailyHardLimit)")
+                InfoRow(label: "Used today", value: "\(creditStore.usedToday(for: profile)) / \(dailyHardLimit)")
             }
 
             runButton
 
             if creditStore.hasEnoughCredits(for: profile) == false {
-                Text("额度不足，请先补充演示额度。")
+                Text("Not enough credits. Add demo credits first.")
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else if creditStore.hasDailyQuota(for: profile) == false {
-                Text("今日 \(profile.name) 次数已用完。")
+                Text("Daily limit reached for \(profile.name).")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -238,7 +341,7 @@ private struct MeteredSpeedActionCard: View {
     }
 
     private var buttonTitle: String {
-        isRunning ? "测速中..." : "开始\(profile.name)"
+        isRunning ? "Testing..." : "Start \(profile.name)"
     }
 
     private var iconName: String {
@@ -257,9 +360,9 @@ private struct CreditHistoryCard: View {
     var transactions: [CreditTransaction]
 
     var body: some View {
-        CardView(title: "最近额度流水") {
+        CardView(title: "Recent credit activity") {
             if transactions.isEmpty {
-                PlaceholderText("还没有额度流水。")
+                PlaceholderText("No credit activity yet.")
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(transactions.prefix(6))) { transaction in
@@ -332,13 +435,13 @@ private struct CompactMembershipCard: View {
     @ObservedObject var membershipStore: MembershipStore
 
     var body: some View {
-        CardView(title: "节点模式") {
-            InfoRow(label: "当前状态", value: membershipStore.statusText)
+        CardView(title: "Node mode") {
+            InfoRow(label: "Status", value: membershipStore.statusText)
             InfoRow(
-                label: "全球节点",
+                label: "Global nodes",
                 value: membershipStore.isPro
-                    ? "\(EndpointCatalog.regional.count) 个节点已解锁"
-                    : "\(EndpointCatalog.freeRegional.count) 个默认节点，\(EndpointCatalog.premiumRegional.count) 个高级节点待解锁"
+                    ? "\(EndpointCatalog.regional.count) nodes unlocked"
+                    : "\(EndpointCatalog.freeRegional.count) default nodes, \(EndpointCatalog.premiumRegional.count) premium nodes locked"
             )
         }
     }
@@ -349,26 +452,26 @@ private struct MembershipNodeUnlockCard: View {
     @ObservedObject var creditStore: CreditLedgerStore
 
     var body: some View {
-        CardView(title: "全球节点模式") {
+        CardView(title: "Global node mode") {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(membershipStore.isPro ? "高级全球节点已解锁" : "启用演示模式后解锁更多全球节点")
+                    Text(membershipStore.isPro ? "Premium global nodes unlocked" : "Enable demo mode to unlock more global nodes")
                         .font(.headline)
-                    Text("默认模式保留核心区域，高级演示模式会额外开放 \(EndpointCatalog.premiumRegional.count) 个节点，用于定位跨境、海外服务、VPN 和区域路由问题。")
+                    Text("Default mode keeps core regions. Advanced demo mode opens \(EndpointCatalog.premiumRegional.count) more nodes for cross-border, overseas service, VPN, and routing issues.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    InfoRow(label: "默认节点", value: "\(EndpointCatalog.freeRegional.count) 个")
-                    InfoRow(label: "高级节点", value: "\(EndpointCatalog.premiumRegional.count) 个")
+                    InfoRow(label: "Default nodes", value: "\(EndpointCatalog.freeRegional.count)")
+                    InfoRow(label: "Premium nodes", value: "\(EndpointCatalog.premiumRegional.count)")
                 }
 
                 Spacer()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    InfoRow(label: "状态", value: membershipStore.statusText)
+                    InfoRow(label: "Status", value: membershipStore.statusText)
                     Button {
                         unlockMembership()
                     } label: {
-                        Label(membershipStore.isPro ? "延长高级模式" : "启用高级演示模式", systemImage: "sparkles")
+                        Label(membershipStore.isPro ? "Extend advanced mode" : "Enable advanced demo mode", systemImage: "sparkles")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
@@ -393,23 +496,23 @@ private struct MembershipPlanCard: View {
     @ObservedObject var creditStore: CreditLedgerStore
 
     var body: some View {
-        CardView(title: "高级实验模式") {
+        CardView(title: "Advanced demo mode") {
             HStack(alignment: .top, spacing: 14) {
                 VStack(alignment: .leading, spacing: 8) {
-                    InfoRow(label: "模式", value: membershipStore.plan.name)
-                    InfoRow(label: "状态", value: membershipStore.statusText)
-                    InfoRow(label: "演示额度", value: "\(membershipStore.plan.monthlyCredits) 点/月")
-                    InfoRow(label: "节点范围", value: "解锁 \(EndpointCatalog.premiumRegional.count) 个高级全球节点")
+                    InfoRow(label: "Mode", value: membershipStore.plan.name)
+                    InfoRow(label: "Status", value: membershipStore.statusText)
+                    InfoRow(label: "Demo credits", value: "\(membershipStore.plan.monthlyCredits)/month")
+                    InfoRow(label: "Node scope", value: "Unlocks \(EndpointCatalog.premiumRegional.count) premium global nodes")
 
                     Button {
                         unlockMembership()
                     } label: {
-                        Label(membershipStore.isPro ? "延长演示模式" : "启用演示模式", systemImage: "sparkles")
+                        Label(membershipStore.isPro ? "Extend demo mode" : "Enable demo mode", systemImage: "sparkles")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
 
-                    Text("当前是本地开源演示。若你接入自建节点或账号系统，应由服务端校验权限、发放额度并限制高流量测速。")
+                    Text("This is a local open-source demo. If you connect self-hosted nodes or accounts, the server should validate access, grant credits, and limit high-traffic tests.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -417,7 +520,7 @@ private struct MembershipPlanCard: View {
                 .frame(maxWidth: .infinity, alignment: .topLeading)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("模式能力")
+                    Text("Mode capabilities")
                         .font(.subheadline.weight(.semibold))
                     ForEach(membershipStore.plan.benefits) { benefit in
                         VStack(alignment: .leading, spacing: 3) {
@@ -477,13 +580,13 @@ private struct CostProtectionTab: View {
             VStack(alignment: .leading, spacing: 12) {
                 MembershipPlanCard(membershipStore: membershipStore, creditStore: creditStore)
 
-                CardView(title: "成本保护示例") {
-                    Text("会消耗服务器带宽的测速可以使用预付额度。测速前先扣额度，并按最坏公网出站成本估算风险，适合给自建节点或公开服务做限额参考。")
+                CardView(title: "Cost protection example") {
+                    Text("Bandwidth-heavy speed tests can use prepaid credits. Credits are reserved before a test, and worst-case egress cost is estimated to help you design limits for self-hosted or public services.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    InfoRow(label: "成本假设", value: "$\(Int(policy.worstCaseEgressCostPerTerabyteUSD))/TB 出站流量")
-                    InfoRow(label: "汇率假设", value: "1 USD = \(policy.usdToRMB.formattedOneDecimal) RMB")
-                    InfoRow(label: "安全阈值", value: "\(Int(policy.minimumGrossMarginRate * 100))%")
+                    InfoRow(label: "Cost assumption", value: "$\(Int(policy.worstCaseEgressCostPerTerabyteUSD))/TB egress")
+                    InfoRow(label: "FX assumption", value: "1 USD = \(policy.usdToRMB.formattedOneDecimal) RMB")
+                    InfoRow(label: "Safety threshold", value: "\(Int(policy.minimumGrossMarginRate * 100))%")
                 }
 
                 HStack(alignment: .top, spacing: 12) {
@@ -503,11 +606,11 @@ private struct CreditPackCard: View {
     var pack: CreditPack
 
     var body: some View {
-        CardView(title: "默认额度包") {
-            InfoRow(label: "价格", value: pack.priceRMB.formattedRMB)
-            InfoRow(label: "额度", value: "\(pack.credits) 点")
-            InfoRow(label: "平台后收入", value: pack.netRevenueRMB.formattedRMB)
-            InfoRow(label: "每点净收入", value: pack.netRevenuePerCreditRMB.formattedRMB)
+        CardView(title: "Default credit pack") {
+            InfoRow(label: "Price", value: pack.priceRMB.formattedRMB)
+            InfoRow(label: "Credits", value: "\(pack.credits)")
+            InfoRow(label: "Net revenue", value: pack.netRevenueRMB.formattedRMB)
+            InfoRow(label: "Net revenue per credit", value: pack.netRevenuePerCreditRMB.formattedRMB)
         }
     }
 }
@@ -516,7 +619,7 @@ private struct MeteredProfilesCard: View {
     var policy: CostProtectionPolicy
 
     var body: some View {
-        CardView(title: "测速额度规则") {
+        CardView(title: "Speed test credit rules") {
             HStack(alignment: .top, spacing: 12) {
                 ForEach(policy.profiles) { profile in
                     MeteredProfileRow(policy: policy, profile: profile)
@@ -538,7 +641,7 @@ private struct MeteredProfileRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(color)
                 Spacer()
-                Text(policy.isProfitProtected(profile) ? "成本安全" : "需要调整")
+                Text(policy.isProfitProtected(profile) ? "Cost safe" : "Needs tuning")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(policy.isProfitProtected(profile) ? .green : .red)
             }
@@ -548,17 +651,17 @@ private struct MeteredProfileRow: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            InfoRow(label: "额度", value: profile.creditsRequired == 0 ? "免费" : "\(profile.creditsRequired) 点/次")
-            InfoRow(label: "流量", value: "\(profile.downloadMegabytes.formattedNoDecimal) MB 下载 + \(profile.uploadIngressMegabytes.formattedNoDecimal) MB 上传入口")
-            InfoRow(label: "成本", value: profile.estimatedEgressCostRMB(perTerabyteUSD: policy.worstCaseEgressCostPerTerabyteUSD, usdToRMB: policy.usdToRMB).formattedRMB)
+            InfoRow(label: "Credits", value: profile.creditsRequired == 0 ? "Free" : "\(profile.creditsRequired)/run")
+            InfoRow(label: "Traffic", value: "\(profile.downloadMegabytes.formattedNoDecimal) MB down + \(profile.uploadIngressMegabytes.formattedNoDecimal) MB upload ingress")
+            InfoRow(label: "Cost", value: profile.estimatedEgressCostRMB(perTerabyteUSD: policy.worstCaseEgressCostPerTerabyteUSD, usdToRMB: policy.usdToRMB).formattedRMB)
             if profile.creditsRequired > 0 {
-                InfoRow(label: "单次余量", value: profile.grossMarginRMB(perTerabyteUSD: policy.worstCaseEgressCostPerTerabyteUSD, usdToRMB: policy.usdToRMB, perCreditRMB: policy.netRevenuePerCreditRMB).formattedRMB)
+                InfoRow(label: "Margin per run", value: profile.grossMarginRMB(perTerabyteUSD: policy.worstCaseEgressCostPerTerabyteUSD, usdToRMB: policy.usdToRMB, perCreditRMB: policy.netRevenuePerCreditRMB).formattedRMB)
                 if let marginRate = profile.grossMarginRate(perTerabyteUSD: policy.worstCaseEgressCostPerTerabyteUSD, usdToRMB: policy.usdToRMB, perCreditRMB: policy.netRevenuePerCreditRMB) {
-                    InfoRow(label: "安全余量", value: marginRate.formattedPercent)
+                    InfoRow(label: "Safety margin", value: marginRate.formattedPercent)
                 }
             }
             if let dailyHardLimit = profile.dailyHardLimit {
-                InfoRow(label: "每日上限", value: "\(dailyHardLimit) 次/用户")
+                InfoRow(label: "Daily cap", value: "\(dailyHardLimit)/user")
             }
         }
         .padding(10)
@@ -591,10 +694,10 @@ private struct MeteredProfileRow: View {
 
 private struct ServerRulesCard: View {
     var body: some View {
-        CardView(title: "接入服务端建议") {
-            InfoRow(label: "预扣额度", value: "发测速 URL 前扣额度，失败再按规则退回。")
-            InfoRow(label: "短期 URL", value: "测速 URL 只在几十秒内有效，防止被复制滥用。")
-            InfoRow(label: "硬上限", value: "按用户、设备、IP、地区做每日限额。")
+        CardView(title: "Server integration notes") {
+            InfoRow(label: "Reserve credits", value: "Reserve credits before issuing a test URL and refund on failure.")
+            InfoRow(label: "Short-lived URL", value: "Speed test URLs should expire within seconds to prevent reuse.")
+            InfoRow(label: "Hard caps", value: "Apply daily limits by user, device, IP, and region.")
         }
     }
 }
@@ -647,7 +750,7 @@ private struct DiagnosticProgressCard: View {
     var steps: [DiagnosticProgressStep]
 
     var body: some View {
-        CardView(title: "诊断进度") {
+        CardView(title: "Diagnostic progress") {
             HStack(spacing: 8) {
                 ForEach(steps) { step in
                     DiagnosticProgressRow(step: step)
@@ -714,13 +817,13 @@ private struct DiagnosticProgressRow: View {
     private var statusText: String {
         switch step.status {
         case .pending:
-            "等待"
+            "Pending"
         case .running:
-            "进行中"
+            "Running"
         case .completed:
-            "完成"
+            "Done"
         case .failed:
-            "失败"
+            "Failed"
         }
     }
 }
@@ -729,9 +832,9 @@ private struct FindingsCard: View {
     var findings: [DiagnosticFinding]
 
     var body: some View {
-        CardView(title: "诊断发现") {
+        CardView(title: "Findings") {
             if findings.isEmpty {
-                PlaceholderText("运行诊断后，会列出具体问题、影响范围和严重程度。")
+                PlaceholderText("Run diagnostics to list issues, impact, and severity.")
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(findings) { finding in
@@ -761,7 +864,7 @@ private struct FindingRow: View {
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("影响：\(finding.impact)")
+            Text("Impact: \(finding.impact)")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -800,13 +903,13 @@ private struct FindingRow: View {
     private var severityText: String {
         switch finding.severity {
         case .good:
-            "正常"
+            "Normal"
         case .warning:
-            "注意"
+            "Warning"
         case .problem:
-            "问题"
+            "Issue"
         case .unknown:
-            "待确认"
+            "Unknown"
         }
     }
 }
@@ -815,9 +918,9 @@ private struct RecommendationsCard: View {
     var actions: [RepairAction]
 
     var body: some View {
-        CardView(title: "处理建议") {
+        CardView(title: "Recommendations") {
             if actions.isEmpty {
-                PlaceholderText("运行诊断后，会给出下一步处理建议。")
+                PlaceholderText("Run diagnostics to see recommended next steps.")
             } else {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(actions) { action in
@@ -839,7 +942,7 @@ private struct RecommendationRow: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.orange)
                 Spacer()
-                Text("建议")
+                Text("Tip")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.orange)
             }
@@ -858,15 +961,15 @@ private struct IPInfoCard: View {
     var info: IPInfo?
 
     var body: some View {
-        CardView(title: "公网 IP") {
+        CardView(title: "Public IP") {
             if let info {
                 InfoRow(label: "IP", value: info.ipAddress)
-                InfoRow(label: "位置", value: info.locationDescription.isEmpty ? "未知" : info.locationDescription)
-                InfoRow(label: "运营商", value: info.isp ?? info.organization ?? "未知")
-                InfoRow(label: "时区", value: info.timezone ?? "未知")
-                InfoRow(label: "来源", value: info.source)
+                InfoRow(label: "Location", value: info.locationDescription.isEmpty ? "Unknown" : info.locationDescription)
+                InfoRow(label: "ISP", value: info.isp ?? info.organization ?? "Unknown")
+                InfoRow(label: "Timezone", value: info.timezone ?? "Unknown")
+                InfoRow(label: "Source", value: info.source)
             } else {
-                PlaceholderText("尚未查询公网 IP")
+                PlaceholderText("Public IP has not been queried yet.")
             }
         }
     }
@@ -876,37 +979,37 @@ private struct NetworkPathCard: View {
     var snapshot: NetworkPathSnapshot
 
     var body: some View {
-        CardView(title: "本机网络路径") {
-            InfoRow(label: "状态", value: snapshot.status)
-            InfoRow(label: "接口", value: snapshot.interfaces.isEmpty ? "未知" : snapshot.interfaces.joined(separator: ", "))
-            InfoRow(label: "IPv4 / IPv6", value: "\(snapshot.supportsIPv4 ? "支持" : "不支持") / \(snapshot.supportsIPv6 ? "支持" : "不支持")")
-            InfoRow(label: "DNS", value: snapshot.supportsDNS ? "支持" : "不支持")
-            InfoRow(label: "低数据/受限", value: snapshot.isConstrained ? "是" : "否")
-            InfoRow(label: "昂贵网络", value: snapshot.isExpensive ? "是" : "否")
-            InfoRow(label: "VPN 线索", value: snapshot.likelyUsesVPN ? "检测到 utun/tun/tap/ppp 接口" : "未检测到")
+        CardView(title: "Local network path") {
+            InfoRow(label: "Status", value: snapshot.status)
+            InfoRow(label: "Interface", value: snapshot.interfaces.isEmpty ? "Unknown" : snapshot.interfaces.joined(separator: ", "))
+            InfoRow(label: "IPv4 / IPv6", value: "\(snapshot.supportsIPv4 ? "Yes" : "No") / \(snapshot.supportsIPv6 ? "Yes" : "No")")
+            InfoRow(label: "DNS", value: snapshot.supportsDNS ? "Yes" : "No")
+            InfoRow(label: "Low data / constrained", value: snapshot.isConstrained ? "Yes" : "No")
+            InfoRow(label: "Expensive network", value: snapshot.isExpensive ? "Yes" : "No")
+            InfoRow(label: "VPN clues", value: snapshot.likelyUsesVPN ? "Detected utun/tun/tap/ppp interfaces" : "Not detected")
         }
     }
 }
 
 private struct SpeedResultCard: View {
-    var title = "基础测速"
+    var title = "Baseline speed test"
     var result: SpeedTestResult?
 
     var body: some View {
         CardView(title: title) {
             if let result {
-                InfoRow(label: "下载", value: result.downloadMbps?.formattedMbps ?? "失败")
-                InfoRow(label: "上传", value: result.uploadMbps?.formattedMbps ?? "失败")
-                InfoRow(label: "延迟", value: result.latencyMilliseconds?.formattedMilliseconds ?? "未知")
-                InfoRow(label: "抖动", value: result.jitterMilliseconds?.formattedMilliseconds ?? "未知")
-                InfoRow(label: "端点", value: result.endpointName)
+                InfoRow(label: "Download", value: result.downloadMbps?.formattedMbps ?? "Failed")
+                InfoRow(label: "Upload", value: result.uploadMbps?.formattedMbps ?? "Failed")
+                InfoRow(label: "Latency", value: result.latencyMilliseconds?.formattedMilliseconds ?? "Unknown")
+                InfoRow(label: "Jitter", value: result.jitterMilliseconds?.formattedMilliseconds ?? "Unknown")
+                InfoRow(label: "Endpoint", value: result.endpointName)
                 if let error = result.errorMessage {
                     Text(error)
                         .font(.footnote)
                         .foregroundStyle(.orange)
                 }
             } else {
-                PlaceholderText("尚未运行测速")
+                PlaceholderText("No speed test has been run yet.")
             }
         }
     }
@@ -915,6 +1018,7 @@ private struct SpeedResultCard: View {
 private struct GlobalNodeMapCard: View {
     var results: [RegionProbeResult]
     var isPro: Bool
+    @Environment(\.screenshotPreview) private var screenshotPreview
     @State private var hoveredNodeID: String?
     @State private var mapPosition: MapCameraPosition = .region(Self.worldRegion)
 
@@ -932,31 +1036,35 @@ private struct GlobalNodeMapCard: View {
     }
 
     var body: some View {
-        CardView(title: "全球节点地图") {
+        CardView(title: "Global node map") {
             VStack(alignment: .leading, spacing: 10) {
-                Text(isPro ? "高级模式已解锁全部全球节点。颜色按延迟判断：绿色快，橙色一般，红色慢，灰色失败。" : "灰色星标节点为高级演示节点，启用后会参与探测。")
+                Text(isPro ? "Advanced mode unlocked all global nodes. Colors reflect latency: green fast, orange moderate, red slow, gray failed." : "Gray sparkle nodes are premium demo nodes and will be probed after advanced mode is enabled.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
 
                 ZStack(alignment: .topLeading) {
-                    Map(position: $mapPosition, interactionModes: [.pan, .zoom]) {
-                        ForEach(displayResults) { result in
-                            Annotation(result.displayName, coordinate: coordinate(for: result), anchor: .center) {
-                                MapNodeView(result: result, isLocked: isLocked(result))
-                                    .onHover { isHovering in
-                                        hoveredNodeID = isHovering ? result.id : nil
-                                    }
-                                    .help(nodeTooltip(for: result))
+                    if screenshotPreview {
+                        StaticScreenshotMapView(results: displayResults, isPro: isPro)
+                    } else {
+                        Map(position: $mapPosition, interactionModes: [.pan, .zoom]) {
+                            ForEach(displayResults) { result in
+                                Annotation(result.displayName, coordinate: coordinate(for: result), anchor: .center) {
+                                    MapNodeView(result: result, isLocked: isLocked(result))
+                                        .onHover { isHovering in
+                                            hoveredNodeID = isHovering ? result.id : nil
+                                        }
+                                        .help(nodeTooltip(for: result))
+                                }
                             }
                         }
-                    }
-                    .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
-                    .mapControls {
-                        MapCompass()
-                        MapScaleView()
+                        .mapStyle(.standard(elevation: .flat, emphasis: .muted, pointsOfInterest: .excludingAll))
+                        .mapControls {
+                            MapCompass()
+                            MapScaleView()
+                        }
                     }
 
-                    if let hoveredResult {
+                    if let hoveredResult, screenshotPreview == false {
                         NodeTooltipCard(result: hoveredResult)
                             .frame(width: 240)
                             .padding(12)
@@ -967,7 +1075,7 @@ private struct GlobalNodeMapCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 8)], alignment: .leading, spacing: 8) {
-                    Button("全图") {
+                    Button("World") {
                         withAnimation {
                             mapPosition = .region(Self.worldRegion)
                         }
@@ -988,10 +1096,10 @@ private struct GlobalNodeMapCard: View {
                 }
 
                 HStack(spacing: 14) {
-                    MapLegendItem(color: .green, label: "快 < 200 ms")
-                    MapLegendItem(color: .orange, label: "一般 < 700 ms")
-                    MapLegendItem(color: .red, label: "慢 >= 700 ms")
-                    MapLegendItem(color: .gray, label: isPro ? "失败" : "失败/高级节点")
+                    MapLegendItem(color: .green, label: "Fast < 200 ms")
+                    MapLegendItem(color: .orange, label: "Moderate < 700 ms")
+                    MapLegendItem(color: .red, label: "Slow >= 700 ms")
+                    MapLegendItem(color: .gray, label: isPro ? "Failed" : "Failed / premium")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -1101,22 +1209,115 @@ private struct GlobalNodeMapCard: View {
         if isLocked(result) {
             return [
                 result.displayName,
-                "状态：高级演示节点",
-                "说明：启用后参与探测",
-                "端点：\(result.endpointHost)"
+                "Status: premium demo node",
+                "Note: probed after advanced mode is enabled",
+                "Endpoint: \(result.endpointHost)"
             ].joined(separator: "\n")
         }
 
         return [
             result.displayName,
-            "延迟：\(result.latencyMilliseconds?.formattedMilliseconds ?? "失败")",
-            "下载：\(result.downloadMbps?.formattedMbps ?? "仅延迟/失败")",
-            "端点：\(result.endpointHost)"
+            "Latency: \(result.latencyMilliseconds?.formattedMilliseconds ?? "Failed")",
+            "Download: \(result.downloadMbps?.formattedMbps ?? "Latency only / failed")",
+            "Endpoint: \(result.endpointHost)"
         ].joined(separator: "\n")
     }
 
     private func isLocked(_ result: RegionProbeResult) -> Bool {
         result.requiresMembership && isPro == false
+    }
+}
+
+private struct StaticScreenshotMapView: View {
+    var results: [RegionProbeResult]
+    var isPro: Bool
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(red: 0.78, green: 0.90, blue: 0.98), Color(red: 0.90, green: 0.96, blue: 0.92)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(red: 0.67, green: 0.84, blue: 0.95).opacity(0.55))
+                .frame(width: 220, height: 130)
+                .offset(x: -180, y: -40)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(red: 0.67, green: 0.84, blue: 0.95).opacity(0.55))
+                .frame(width: 130, height: 110)
+                .offset(x: -60, y: -70)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(red: 0.67, green: 0.84, blue: 0.95).opacity(0.55))
+                .frame(width: 150, height: 130)
+                .offset(x: 70, y: -30)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(red: 0.67, green: 0.84, blue: 0.95).opacity(0.55))
+                .frame(width: 110, height: 90)
+                .offset(x: 250, y: 10)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(Color(red: 0.67, green: 0.84, blue: 0.95).opacity(0.55))
+                .frame(width: 90, height: 70)
+                .offset(x: -120, y: 110)
+
+            ForEach(results) { result in
+                let point = projectedPoint(for: result)
+                MapNodeView(result: result, isLocked: result.requiresMembership && isPro == false)
+                    .position(point)
+            }
+        }
+    }
+
+    private func projectedPoint(for result: RegionProbeResult) -> CGPoint {
+        let latitude = coordinateLatitude(for: result)
+        let longitude = coordinateLongitude(for: result)
+        let x = (longitude + 180) / 360 * 920 + 30
+        let y = (90 - latitude) / 180 * 380 + 20
+        return CGPoint(x: x, y: y)
+    }
+
+    private func coordinateLatitude(for result: RegionProbeResult) -> Double {
+        switch result.regionCode.uppercased() {
+        case "US-W", "US-WEST": 37.7749
+        case "US-E", "US-EAST", "US": 39.0438
+        case "CA": 45.5019
+        case "BR": -23.5558
+        case "EU", "EUROPE", "UK", "DE", "FR", "SE", "IT": 50.0
+        case "IN": 19.0760
+        case "JP", "JAPAN": 35.6762
+        case "KR": 37.5665
+        case "HK": 22.3193
+        case "SG", "SINGAPORE": 1.3521
+        case "AU", "AUSTRALIA": -33.8688
+        case "CN", "CHINA": 31.2304
+        default: 20.0
+        }
+    }
+
+    private func coordinateLongitude(for result: RegionProbeResult) -> Double {
+        switch result.regionCode.uppercased() {
+        case "US-W", "US-WEST": -122.4194
+        case "US-E", "US-EAST", "US": -77.4874
+        case "CA": -73.5674
+        case "BR": -46.6396
+        case "EU", "EUROPE": -6.2603
+        case "UK": -0.1276
+        case "DE": 8.6821
+        case "FR": 2.3522
+        case "IN": 72.8777
+        case "JP", "JAPAN": 139.6503
+        case "KR": 126.9780
+        case "HK": 114.1694
+        case "SG", "SINGAPORE": 103.8198
+        case "AU", "AUSTRALIA": 151.2093
+        case "CN", "CHINA": 121.4737
+        default: 0.0
+        }
     }
 }
 
@@ -1177,10 +1378,10 @@ private struct NodeTooltipCard: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(result.displayName)
                 .font(.headline)
-            InfoRow(label: "状态", value: result.isReachable ? "可达" : "失败")
-            InfoRow(label: "延迟", value: result.latencyMilliseconds?.formattedMilliseconds ?? "失败")
-            InfoRow(label: "下载", value: result.downloadMbps?.formattedMbps ?? "仅延迟/失败")
-            InfoRow(label: "端点", value: result.endpointHost)
+            InfoRow(label: "Status", value: result.isReachable ? "Reachable" : "Failed")
+            InfoRow(label: "Latency", value: result.latencyMilliseconds?.formattedMilliseconds ?? "Failed")
+            InfoRow(label: "Download", value: result.downloadMbps?.formattedMbps ?? "Latency only / failed")
+            InfoRow(label: "Endpoint", value: result.endpointHost)
             if let errorMessage = result.errorMessage {
                 Text(errorMessage)
                     .font(.caption)
@@ -1218,9 +1419,9 @@ private struct RegionResultsCard: View {
     }
 
     var body: some View {
-        CardView(title: "全球区域节点") {
+        CardView(title: "Global regional nodes") {
             if displayResults.isEmpty {
-                PlaceholderText("尚未配置区域节点")
+                PlaceholderText("No regional nodes configured yet.")
             } else {
                 LazyVGrid(columns: [
                     GridItem(.flexible(), spacing: 12),
@@ -1239,16 +1440,16 @@ private struct RegionResultsCard: View {
                                             .foregroundStyle(.orange)
                                     }
                                 }
-                                Text(result.requiresMembership && isPro == false ? "高级节点" : result.endpointHost)
+                                Text(result.requiresMembership && isPro == false ? "Premium node" : result.endpointHost)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                     .lineLimit(1)
                             }
                             Spacer()
                             VStack(alignment: .trailing, spacing: 4) {
-                                Text(result.requiresMembership && isPro == false ? "待解锁" : result.latencyMilliseconds?.formattedMilliseconds ?? "失败")
+                                Text(result.requiresMembership && isPro == false ? "Locked" : result.latencyMilliseconds?.formattedMilliseconds ?? "Failed")
                                     .font(.headline)
-                                Text(result.requiresMembership && isPro == false ? "高级" : result.downloadMbps?.formattedMbps ?? "仅延迟")
+                                Text(result.requiresMembership && isPro == false ? "Premium" : result.downloadMbps?.formattedMbps ?? "Latency only")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -1279,7 +1480,7 @@ private func mergedRegionResults(_ results: [RegionProbeResult], isPro: Bool) ->
             latencyMilliseconds: nil,
             downloadMbps: nil,
             isReachable: false,
-            errorMessage: endpoint.requiresMembership && isPro == false ? "高级演示节点，启用后解锁。" : "尚未探测",
+            errorMessage: endpoint.requiresMembership && isPro == false ? "Premium demo node. Enable advanced mode to unlock." : "Not probed yet",
             requiresMembership: endpoint.requiresMembership
         )
     }
