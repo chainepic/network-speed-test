@@ -12,7 +12,7 @@ Diagnosis summary, public IP lookup, local network path, and VPN hints.
 
 ![Overview with VPN detection](docs/screenshots/overview-vpn-detection.png)
 
-![Overview with local network diagnosis](docs/screenshots/overview-diagnosis.png)
+
 
 ### Speed Test
 
@@ -26,9 +26,7 @@ Download, upload, latency, jitter, and local quota guardrails for high-traffic t
 
 Regional reachability and latency checks across core global endpoints.
 
-![Global node latency results](docs/screenshots/global-nodes-latency.png)
 
-![Global node mixed results](docs/screenshots/global-nodes-mixed-results.png)
 
 ## Features
 
