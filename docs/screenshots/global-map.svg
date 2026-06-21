@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="title desc">
+  <title id="title">Global node map preview</title>
+  <desc id="desc">A stylized preview of global regional probes and latency colors.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eff6ff"/>
+      <stop offset="1" stop-color="#ecfdf5"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="1440" height="900" rx="42" fill="url(#bg)"/>
+  <text x="96" y="112" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="42" font-weight="800">Global Node Map</text>
+  <text x="96" y="154" fill="#475569" font-family="Inter, Arial, sans-serif" font-size="20">Regional reachability, latency, and endpoint details in a MapKit-style dashboard.</text>
+  <g filter="url(#shadow)" transform="translate(96 210)">
+    <rect width="1248" height="566" rx="32" fill="#ffffff"/>
+    <rect x="36" y="36" width="792" height="494" rx="24" fill="#dbeafe"/>
+    <path d="M106 196 C190 126 276 142 354 182 C444 228 546 160 650 198 C732 228 744 318 646 354 C520 402 432 346 344 392 C244 444 126 388 96 300 C84 264 82 224 106 196 Z" fill="#bfdbfe"/>
+    <path d="M162 286 C242 234 300 266 364 300 C462 352 558 310 656 286 C726 268 790 306 774 372 C756 446 620 460 522 426 C430 394 370 430 280 414 C190 398 108 354 162 286 Z" fill="#93c5fd" opacity="0.8"/>
+    <g font-family="Inter, Arial, sans-serif" font-size="15" font-weight="700">
+      <circle cx="234" cy="258" r="13" fill="#22c55e"/>
+      <text x="254" y="264" fill="#0f172a">US West</text>
+      <circle cx="390" cy="248" r="13" fill="#22c55e"/>
+      <text x="410" y="254" fill="#0f172a">US East</text>
+      <circle cx="470" cy="204" r="13" fill="#f59e0b"/>
+      <text x="490" y="210" fill="#0f172a">Europe</text>
+      <circle cx="616" cy="306" r="13" fill="#22c55e"/>
+      <text x="636" y="312" fill="#0f172a">Singapore</text>
+      <circle cx="690" cy="242" r="13" fill="#ef4444"/>
+      <text x="710" y="248" fill="#0f172a">Japan</text>
+      <circle cx="594" cy="404" r="13" fill="#94a3b8"/>
+      <text x="614" y="410" fill="#0f172a">Advanced</text>
+    </g>
+    <g transform="translate(866 36)">
+      <text x="0" y="22" fill="#0f172a" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="800">Probe results</text>
+      <g font-family="Inter, Arial, sans-serif">
+        <rect x="0" y="58" width="324" height="72" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="20" y="88" fill="#0f172a" font-size="18" font-weight="700">US West</text>
+        <text x="220" y="88" fill="#16a34a" font-size="18" font-weight="800">42 ms</text>
+        <text x="20" y="112" fill="#64748b" font-size="14">speed.cloudflare.com</text>
+        <rect x="0" y="148" width="324" height="72" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="20" y="178" fill="#0f172a" font-size="18" font-weight="700">Europe</text>
+        <text x="220" y="178" fill="#d97706" font-size="18" font-weight="800">241 ms</text>
+        <text x="20" y="202" fill="#64748b" font-size="14">regional endpoint</text>
+        <rect x="0" y="238" width="324" height="72" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+        <text x="20" y="268" fill="#0f172a" font-size="18" font-weight="700">Japan</text>
+        <text x="220" y="268" fill="#dc2626" font-size="18" font-weight="800">812 ms</text>
+        <text x="20" y="292" fill="#64748b" font-size="14">slow route detected</text>
+      </g>
+      <g transform="translate(0 360)" font-family="Inter, Arial, sans-serif" font-size="15">
+        <circle cx="8" cy="8" r="8" fill="#22c55e"/><text x="24" y="13" fill="#334155">Fast &lt; 200 ms</text>
+        <circle cx="8" cy="42" r="8" fill="#f59e0b"/><text x="24" y="47" fill="#334155">Medium &lt; 700 ms</text>
+        <circle cx="8" cy="76" r="8" fill="#ef4444"/><text x="24" y="81" fill="#334155">Slow &gt;= 700 ms</text>
+      </g>
+    </g>
+  </g>
+</svg>
