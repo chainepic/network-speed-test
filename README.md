@@ -4,7 +4,31 @@ A SwiftUI network speed test and diagnostics app for macOS, with shared source t
 
 Network Speed Test combines public IP lookup, local network path inspection, HTTPS download/upload sampling, latency and jitter checks, VPN hints, and a MapKit-based global node view. It is designed as an open-source starting point for learning, local troubleshooting, and building your own network diagnostics tool.
 
-![Network Speed Test dashboard](docs/screenshots/dashboard.svg)
+## Screenshots
+
+### Overview
+
+Diagnosis summary, public IP lookup, local network path, and VPN hints.
+
+![Overview with VPN detection](docs/screenshots/overview-vpn-detection.png)
+
+![Overview with local network diagnosis](docs/screenshots/overview-diagnosis.png)
+
+### Speed Test
+
+Download, upload, latency, jitter, and local quota guardrails for high-traffic tests.
+
+![Speed test results](docs/screenshots/speed-test-results.png)
+
+![Speed test profiles and guardrails](docs/screenshots/speed-test-guardrails.png)
+
+### Global Nodes
+
+Regional reachability and latency checks across core global endpoints.
+
+![Global node latency results](docs/screenshots/global-nodes-latency.png)
+
+![Global node mixed results](docs/screenshots/global-nodes-mixed-results.png)
 
 ## Features
 
@@ -18,12 +42,6 @@ Network Speed Test combines public IP lookup, local network path inspection, HTT
 - Step-by-step diagnosis progress so users can see which checks are running, completed, or failed.
 - MapKit global node map with latency-based colors and hover details.
 - Local quota/cost-guardrail demo for high-traffic speed test scenarios.
-
-## Screenshots
-
-![Global node map](docs/screenshots/global-map.svg)
-
-![Speed test and guardrails](docs/screenshots/speed-test.svg)
 
 ## Requirements
 
